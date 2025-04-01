@@ -37,23 +37,7 @@ ensg536_commonGene = annotated_536df[annotated_536df$ensgene
 ensg305_commonGene = annotated_305df[annotated_305df$ensgene
                                      %in% common_HPV_ensg,c("ensgene", "log2FoldChange")]
 
-list_df = list(ensg305_commonGene, ensg462_commonGene,ensg536_commonGene)
 
-
-
-
-common_folChange = purrr::reduce(list_df, left_join , by = "ensgene")
-colnames(common_folChange)[c(2,3,4)] = c("GSE250305", "GSE70462","GSE72536")
-
-correlate_gene = cor(common_folChange[,c("GSE250305", "GSE70462","GSE72536")], 
-                     method = "pearson")
-
-
-correlate_gene =  as.data.frame(correlate_gene)
-rownames(correlate_gene) = colnames(correlate_gene)
-rownames_to_column(correlate_gene, var = "GEO data set")
-
-write_tsv(correlate_gene, "correlation of gene.txt")
 
 anno305_diff = anno305_df3$ensgene
 anno462_diff = anno462_df3$ensgene
@@ -102,7 +86,17 @@ view(summary(ego_DE))
 barplot(ego_DE, title = "Overlapping Genes")
 dotplot(ego_DE, title = "Overlapping Genes")
 
+## MF
+ego_DE_MF = enrichGO(gene = entgene_DE,
+                  OrgDb = org.Hs.eg.db,
+                  ont = "MF",
+                  universe = entUni_DE,
+                  readable = TRUE)
 
+ego_DE_MF
+view(summary(ego_DE_MF))
+barplot(ego_DE_MF, title = "Overlapping Genes Molecular function")
+dotplot(ego_DE_MF, title = "Overlapping Genes Molecular function")
 
 
 ekegg_DE = enrichKEGG(gene = entgene_DE,
@@ -146,7 +140,7 @@ write_tsv(annotation_overlap, "overlapping_genes.txt")
 
 annotation_overlap$external_gene_name
 
-
+write_tsv(common_gene_diff, "common_geneDiff.txt")
 
 
 
