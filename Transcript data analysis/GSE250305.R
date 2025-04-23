@@ -7,13 +7,10 @@ library(ggplot2)
 library(plotly)
 library(tibble)
 library(biomaRt)
-library(pheatmap)
 library(clusterProfiler)
 library(org.Hs.eg.db)
-library(RSkittleBrewer)
 library(gplots)
 library(AnnotationDbi)
-library(RColorBrewer)
 
 
 view(read_csv("SraRunTable_GSE250305.txt"))
@@ -63,22 +60,18 @@ plotPCA(vst305, intgroup = "condition") + ggtitle("GSE250305")
 dds305_res = results(dds305)
 summary(dds305_res)
 
-## MA-plot
-plotMA(dds305_res, main = "GSE211322")
-
 dds305_res_df = as.data.frame(dds305_res)
 dds305_res_df = rownames_to_column(dds305_res_df, var = "ensgene")
 dds305_f1 = dplyr::filter(dds305_res_df, complete.cases(dds305_res_df))
 dds305_f2 = dplyr::filter(dds305_f1, padj <0.05)
-dds305_f3 = dplyr::filter(dds305_f2, abs(log2FoldChange) > 2)
-dds305_f1$test = dds305_f1$padj < 0.05 & abs(dds305_f1$log2FoldChange) > 2
-
+dds305_f3 = dplyr::filter(dds305_f2, abs(log2FoldChange) > 1)
+dds305_f1$test = dds305_f1$padj < 0.05 & abs(dds305_f1$log2FoldChange) > 1
 g305 = ggplot(dds305_f1, aes(x= log2FoldChange, 
                              y=-log10(padj),
                              name=ensgene)) +
   geom_point(aes(colour = test), size =1.3, alpha = 0.5) +
-  geom_vline(xintercept = 2, linetype = 3) +
-  geom_vline(xintercept = -2, linetype = 3) +
+  geom_vline(xintercept = 1, linetype = 3) +
+  geom_vline(xintercept = -1, linetype = 3) +
   geom_hline(yintercept = -log10(0.05), linetype = 3) +
   theme_bw() +
   theme(legend.position = "none") +
@@ -113,8 +106,8 @@ g305_annotated= ggplot(annotated_305df, aes(x= log2FoldChange,
                                             y=-log10(padj),
                                             name= external_gene_name)) +
   geom_point(aes(colour = test), size =1.3, alpha = 0.5) +
-  geom_vline(xintercept = 2, linetype = 3) +
-  geom_vline(xintercept = -2, linetype = 3) +
+  geom_vline(xintercept = 1, linetype = 3) +
+  geom_vline(xintercept = -1, linetype = 3) +
   geom_hline(yintercept = -log10(0.05), linetype = 3) +
   theme_bw() +
   theme(legend.position = "none") +
@@ -124,48 +117,8 @@ g305_annotated
 ggplotly(g305_annotated)
 
 anno305_df2 = dplyr::filter(annotated_305df, padj <0.05)
-anno305_df3 = dplyr::filter(anno305_df2, abs(log2FoldChange) > 2)
+anno305_df3 = dplyr::filter(anno305_df2, abs(log2FoldChange) > 1)
 
-vst305_mat = assay(vst305)
-
-xa = as.matrix(c(rep("HPV Positive", times = 9),
-                 rep("HPV Negative", times = 12)))
-
-## Significant Up Regulated Genes
-
-up_genes305 = subset(anno305_df3, log2FoldChange > 0)
-head(up_genes305)
-
-top_up_305 <- head(up_genes305[order(up_genes305$log2FoldChange,
-                                     decreasing = TRUE),],20)
-
-top_exp305 <- vst305_mat[top_up_305$ensgene,]
-pheatmap(top_exp305,
-         cluster_rows = FALSE,
-         cluster_cols = FALSE,
-         scale = "row",
-         labels_col = xa,
-         col=brewer.pal(name="RdBu", n=11),
-         main = "Significant upregulated Genes in GSE250305")
-
-
-
-
-## Significant Down Regulated Genes
-
-down_genes305 <- subset(anno305_df3,log2FoldChange < 0)
-head(down_genes305)
-
-top_down305 <- head(down_genes305[order(down_genes305$log2FoldChange, 
-                                        decreasing = TRUE), ], 20)
-top_down_exp305 <- vst305_mat[top_down305$ensgene,]
-pheatmap(top_down_exp305,
-         cluster_rows = FALSE,
-         cluster_cols = FALSE,
-         scale = "row",
-         labels_col = xa,
-         col=brewer.pal(name="RdBu", n=11),
-         main = "Significant Down Regulated Genes in GSE250305")
 
 
 ## GO analysis
@@ -177,17 +130,11 @@ entgene_305 = getBM(attributes = c("entrezgene_id"),
 
 entgene_305 = as.character(entgene_305$entrezgene_id)
 
-entUni_305 = getBM(attributes = c("entrezgene_id"),
-                   filters =c("ensembl_gene_id"),
-                   values = annotated_305df$ensgene,
-                   mart = ensemble111)
-entUni_305 = as.character(entUni_305$entrezgene_id)
+
 
 ego_305 = enrichGO(gene = entgene_305,
                    OrgDb = org.Hs.eg.db,
-                   ont = "BP",
-                   universe = entUni_305,
-                   readable = TRUE)
+                   ont = "BP")
 
 ego_305
 view(summary(ego_305))
@@ -195,14 +142,11 @@ view(summary(ego_305))
 barplot(ego_305, title = "GSE250305")
 dotplot(ego_305, title = "GSE250305")
 
-foldchange_305 = anno305_df3$log2FoldChange
-names(foldchange_305) = anno305_df3$external_gene_name  
 
-cnetplot(ego_305,showCategory = 10, foldChange = foldchange_305)+ 
-  ggtitle("GSE250305")
+ekg305 = enrichKEGG(gene = entgene_305)
 
-ekg305 = enrichKEGG(gene = entgene_305,
-                    universe = entUni_305)
+dotplot(ekg305, title = "GSE250305")
+
 view(ekg305)
 write_tsv(anno305_df3, "DE Genes_GSE250305.txt")
 write_tsv(dds305_f3, "DE Genes_filtered_GSE250305.txt")

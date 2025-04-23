@@ -7,13 +7,11 @@ library(ggplot2)
 library(plotly)
 library(tibble)
 library(biomaRt)
-library(pheatmap)
 library(clusterProfiler)
 library(org.Hs.eg.db)
-library(RSkittleBrewer)
 library(gplots)
 library(AnnotationDbi)
-library(RColorBrewer)
+
 
 
 view(read_csv("SraRunTable_536.txt"))
@@ -63,24 +61,21 @@ plotPCA(vst536, intgroup = "condition") + ggtitle("GSE772536")
 dds536_res = results(dds536)
 summary(dds536_res)
 
-## MA-plot
-plotMA(dds536_res, main = "GSE72536")
-
 
 dds536_res_df = as.data.frame(dds536_res)
 dds536_res_df = rownames_to_column(dds536_res_df, var = "ensgene")
 dds536_f1 = dplyr::filter(dds536_res_df, complete.cases(dds536_res_df))
 dds536_f2 = dplyr::filter(dds536_f1, padj <0.05)
-dds536_f3 = dplyr::filter(dds536_f2, abs(log2FoldChange) > 2)
+dds536_f3 = dplyr::filter(dds536_f2, abs(log2FoldChange) > 1)
 dds536_f1$test = dds536_f1$padj < 0.05 & 
-  abs(dds536_f1$log2FoldChange) > 2
+  abs(dds536_f1$log2FoldChange) > 1
 ## Volcano plot
 g536 = ggplot(dds536_f1, aes(x= log2FoldChange, 
                              y=-log10(padj),
                              name=ensgene)) +
   geom_point(aes(colour = test), size =1.3, alpha = 0.5) +
-  geom_vline(xintercept = 2, linetype = 3) +
-  geom_vline(xintercept = -2, linetype = 3) +
+  geom_vline(xintercept = 1, linetype = 3) +
+  geom_vline(xintercept = -1, linetype = 3) +
   geom_hline(yintercept = -log10(0.05), linetype = 3) +
   theme_bw() +
   theme(legend.position = "none") +
@@ -125,49 +120,8 @@ g536_annotated
 
 ggplotly(g536_annotated)
 anno536_df2 = dplyr::filter(annotated_536df, padj <0.05)
-anno536_df3 = dplyr::filter(anno536_df2, abs(log2FoldChange) > 2)
+anno536_df3 = dplyr::filter(anno536_df2, abs(log2FoldChange) > 1)
 
-vst536_mat = assay(vst536)
-
-xa = as.matrix(c(rep("HPV Negative", times = 4),
-                 rep("HPV Positive", times = 10),
-                 rep("HPV Negative", times = 9)))
-
-## Significant Up Regulated Genes
-
-up_genes536 = subset(anno536_df3, log2FoldChange > 0)
-head(up_genes536)
-
-top_up_536 <- head(up_genes536[order(up_genes536$log2FoldChange,
-                                     decreasing = TRUE),],20)
-
-top_exp536 <- vst536_mat[top_up_536$ensgene,]
-pheatmap(top_exp536,
-         cluster_rows = FALSE,
-         cluster_cols = FALSE,
-         scale = "row",
-         labels_col = xa,
-         col=brewer.pal(name="RdBu", n=11),
-         main = "Significant upregulated Genes in GSE72536")
-
-
-
-
-## Significant Down Regulated Genes
-
-down_genes536 <- subset(anno536_df3,log2FoldChange < 0)
-head(down_genes536)
-
-top_down536 <- head(down_genes536[order(down_genes536$log2FoldChange, 
-                                        decreasing = TRUE), ], 20)
-top_down_exp536 <- vst536_mat[top_down536$ensgene,]
-pheatmap(top_down_exp536,
-         cluster_rows = FALSE,
-         cluster_cols = FALSE,
-         scale = "row",
-         labels_col = xa,
-         col=brewer.pal(name="RdBu", n=11),
-         main = "Significant Down Regulated Genes in GSE72536")
 
 ## GO analysis
 
@@ -178,17 +132,10 @@ entgene_536 = getBM(attributes = c("entrezgene_id"),
 
 entgene_536 = as.character(entgene_536$entrezgene_id)
 
-entUni_536 = getBM(attributes = c("entrezgene_id"),
-                   filters =c("ensembl_gene_id"),
-                   values = annotated_536df$ensgene,
-                   mart = ensemble111)
-entUni_536 = as.character(entUni_536$entrezgene_id)
 
 ego_536 = enrichGO(gene = entgene_536,
                    OrgDb = org.Hs.eg.db,
-                   ont = "BP",
-                   universe = entUni_536,
-                   readable = TRUE)
+                   ont = "BP")
 
 ego_536
 
@@ -196,14 +143,10 @@ view(summary(ego_536))
 barplot(ego_536, title = "GSE72536")
 dotplot(ego_536, title = "GSE72536")
 
-foldchange_536 = anno536_df3$log2FoldChange
-names(foldchange_536) = anno536_df3$external_gene_name  
 
-cnetplot(ego_536,showCategory = 10, foldChange = foldchange_536) +
-  ggtitle("GSE72536")
+ekg536 = enrichKEGG(gene = entgene_536)
 
-ekg536 = enrichKEGG(gene = entgene_536,
-                    universe = entUni_536)
+barplot(ekg536, title = "GSE72536")
 view(ekg536)
 write_tsv(anno536_df3, "DE Genes_GSE72536.txt")
 write_tsv(dds536_f3, "DE Genes_filtered_GSE72536.txt")

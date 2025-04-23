@@ -7,13 +7,12 @@ library(ggplot2)
 library(plotly)
 library(tibble)
 library(biomaRt)
-library(pheatmap)
 library(clusterProfiler)
 library(org.Hs.eg.db)
 library(RSkittleBrewer)
 library(gplots)
 library(AnnotationDbi)
-library(RColorBrewer)
+
 
 
 
@@ -56,15 +55,12 @@ plotPCA(vst462, intgroup = "condition") + ggtitle("GSE70462")
 dds462_res = results(dds462)
 summary(dds462_res)
 
-## MA-plot
-plotMA(dds462_res, main = "GSE70462")
-
 dds462_res_df = as.data.frame(dds462_res)
 dds462_res_df = rownames_to_column(dds462_res_df, var = "ensgene")
 dds462_f1 = dplyr::filter(dds462_res_df, complete.cases(dds462_res_df))
 dds462_f2 = dplyr::filter(dds462_f1, padj <0.05)
-dds462_f3 = dplyr::filter(dds462_f2, abs(log2FoldChange) > 2)
-dds462_f1$test = dds462_f1$padj < 0.05 & abs(dds462_f1$log2FoldChange) > 2
+dds462_f3 = dplyr::filter(dds462_f2, abs(log2FoldChange) > 1)
+dds462_f1$test = dds462_f1$padj < 0.05 & abs(dds462_f1$log2FoldChange) > 1
 
 ## Volcano plot
 
@@ -72,8 +68,8 @@ g462 = ggplot(dds462_f1, aes(x= log2FoldChange,
                                    y=-log10(padj),
                                    name=ensgene)) +
   geom_point(aes(colour = test), size =1.3, alpha = 0.5) +
-  geom_vline(xintercept = 2, linetype = 3) +
-  geom_vline(xintercept = -2, linetype = 3) +
+  geom_vline(xintercept = 1, linetype = 3) +
+  geom_vline(xintercept = -1, linetype = 3) +
   geom_hline(yintercept = -log10(0.05), linetype = 3) +
   theme_bw() +
   theme(legend.position = "none") +
@@ -107,8 +103,8 @@ g462_annotated= ggplot(annotated_462df, aes(x= log2FoldChange,
                                             y=-log10(padj),
                                             name= external_gene_name)) +
   geom_point(aes(colour = test), size =1.3, alpha = 0.5) +
-  geom_vline(xintercept = 2, linetype = 3) +
-  geom_vline(xintercept = -2, linetype = 3) +
+  geom_vline(xintercept = 1, linetype = 3) +
+  geom_vline(xintercept = -1, linetype = 3) +
   geom_hline(yintercept = -log10(0.05), linetype = 3) +
   theme_bw() +
   theme(legend.position = "none") +
@@ -117,45 +113,7 @@ g462_annotated
 
 ggplotly(g462_annotated)
 anno462_df2 = dplyr::filter(annotated_462df, padj <0.05)
-anno462_df3 = dplyr::filter(anno462_df2, abs(log2FoldChange) > 2)
-vst462_mat = assay(vst462)
-
-xa = as.matrix(c(rep("HPV Negative", times = 2),
-                 rep("HPV Positive", times = 2)))
-
-
-## Significant Up Regulated Genes
-
-up_genes462 = subset(anno462_df3, log2FoldChange > 0)
-head(up_genes462)
-
-top_up_462 <- head(up_genes462[order(up_genes462$log2FoldChange,
-                                     decreasing = TRUE),],20)
-
-top_exp462 <- vst462_mat[top_up_462$ensgene,]
-pheatmap(top_exp462,
-         cluster_rows = FALSE,
-         cluster_cols = FALSE,
-         scale = "row",
-         labels_col = xa,
-         col=brewer.pal(name="RdBu", n=11),
-         main = "Significant upregulated Genes in GSE70462")
-
-## Significant Down Regulated Genes
-
-down_genes462 <- subset(anno462_df3,log2FoldChange < 0)
-head(down_genes462)
-
-top_down462 <- head(down_genes462[order(down_genes462$log2FoldChange, 
-                                  decreasing = TRUE), ], 20)
-top_down_exp462 <- vst462_mat[top_down462$ensgene,]
-pheatmap(top_down_exp462,
-         cluster_rows = FALSE,
-         cluster_cols = FALSE,
-         scale = "row",
-         labels_col = xa,
-         col=brewer.pal(name="RdBu", n=11),
-         main = "Top Down Regulated Genes in GSE70462")
+anno462_df3 = dplyr::filter(anno462_df2, abs(log2FoldChange) > 1)
 
 
 ## GO analysis
@@ -167,31 +125,19 @@ entgene_462 = getBM(attributes = c("entrezgene_id"),
 
 entgene_462 = as.character(entgene_462$entrezgene_id)
 
-entUni_462 = getBM(attributes = c("entrezgene_id"),
-                   filters =c("ensembl_gene_id"),
-                   values = annotated_462df$ensgene,
-                   mart = ensemble111)
-entUni_462 = as.character(entUni_462$entrezgene_id)
 
 ego_462 = enrichGO(gene = entgene_462,
                    OrgDb = org.Hs.eg.db,
-                   ont = "BP",
-                   universe = entUni_462,
-                   readable = TRUE)
+                   ont = "BP")
 
-ego_462
+
 view(summary(ego_462))
 barplot(ego_462, title = "GSE70462")
 dotplot(ego_462, title = "GSE70462")
 
-foldchange_462 = anno462_df3$log2FoldChange
-names(foldchange_462) = anno462_df3$external_gene_name  
+ekg462 = enrichKEGG(gene = entgene_462)
 
-cnetplot(ego_462,showCategory = 10, foldChange = foldchange_462) +
-  ggtitle("GSE70462")
-
-ekg462 = enrichKEGG(gene = entgene_462,
-                    universe = entUni_462)
+barplot(ekg462, title = "GSE70462")
 view(ekg462)
 write_tsv(anno462_df3, "DE Genes_GSE70462.txt")
 write_tsv(dds462_f3, "DE Genes_filtered_GSE70462.txt")
